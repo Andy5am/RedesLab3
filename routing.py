@@ -3,6 +3,7 @@ import asyncio
 import settings
 import sys
 import argparse
+import json
 
 import slixmpp
 from slixmpp.exceptions import IqError, IqTimeout, XMPPError
@@ -18,12 +19,16 @@ def clean_jid(jid, domain="@alumchat.xyz"):
 
 class Client(slixmpp.ClientXMPP):
 
-    def __init__(self, jid, password, algorithm):
+    def __init__(self, jid, password, algorithm, topo, names):
         super().__init__(jid, password)
 
         self.nick = None
 
         self.algorithm = algorithm
+        self.topo = topo
+        self.names = names
+
+        self.node = self.recv_names(self.names.config)
 
         # PLUGINS
         self.register_plugin('xep_0030') # Service Discovery
@@ -48,15 +53,27 @@ class Client(slixmpp.ClientXMPP):
 
 
     def recv_message(self, msg):
-        """ Handles incoming messages. 
-
-        """
+        """ Handles incoming messages. """
 
         # TODO: routing algorithms
 
         if msg['type'] in ('chat', 'normal'):
-            print(f"{msg['from'].username}: {msg['body']}")
-            # msg.reply("Thanks for sending\n%(body)s" % msg).send() #msg['body']
+            # print(f"{msg['from'].username}: {msg['body']}")
+
+            if self.algorithm.lower()=='flooding':
+                payload = json.loads(msg['body']) # get payload
+
+                if payload['destination']==self.jid:
+                    print(f"{payload['source']} says: {payload['message']}")
+                elif payload['hop_counter'] <= 0:
+                    print("Hop counter is 0. Discarding message.")
+                else:
+                    payload['hop_counter'] -= 1 # decrement hop counter
+
+                    for node in self.topo.config[self.node]: # node neighbors
+                        recipient = self.names.config[node]
+                        if msg['from'] != recipient:
+                            self.message(recipient, json.dumps(payload))
             
         elif msg['type'] in ('error'):
             print('An error has ocurred.')
@@ -67,13 +84,25 @@ class Client(slixmpp.ClientXMPP):
 
         recipient = clean_jid(recipient) # Check for domain
         msg = self.Message()
+
         msg['to'] = recipient
         msg['body'] = message
-        msg['type'] = mtype 
+        msg['type'] = mtype
 
         msg.send()
 
+    def recv_topo(self, topo:dict):
+        self.topo = topo
 
+    def recv_names(self, names:dict):
+        """ Identify node name based on names dict. """
+        
+        names_keys = names.keys()
+        names_vals = names.values()
+
+        return names_keys[names_vals.index(self.jid)]
+
+    
     async def app(self, event):
         IN_APP_LOOP = True
 
@@ -86,6 +115,7 @@ class Client(slixmpp.ClientXMPP):
                 recipient = str(await ainput("JID: "))
                 recipient = clean_jid(recipient)
 
+
                 print(f"\nChatting with {recipient}")
                 print("Type 'exit' to exit chat.")
 
@@ -93,8 +123,20 @@ class Client(slixmpp.ClientXMPP):
 
                 while IN_CHAT:
                     msg = str(await ainput(">> "))
+
+                    if self.algorithm.lower()=='flooding':
+                        payload = {
+                            "hop_counter": 20,
+                            "source": self.node,
+                            "destination": recipient,
+                            "message": msg
+                        }
+
                     if msg != 'exit':
-                        self.message(recipient, msg)
+                        if self.algorithm.lower()=='flooding':
+                            for node in self.topo.config[self.node]: # node neighbors
+                                recipient = self.names.config[node]
+                                self.message(recipient, json.dumps(payload))
                     else:
                         IN_CHAT = False
  
@@ -102,7 +144,7 @@ class Client(slixmpp.ClientXMPP):
             elif option==10: # Exit
                 print("Exit")
                 print("Goodbye!")
-                sys.exit()
+                IN_APP_LOOP = False
 
             else:
                 print("Not a valid option.")
