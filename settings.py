@@ -11,6 +11,7 @@ JID = os.environ.get("JID")
 PASSWORD = os.environ.get("PASSWORD")
 DEBUG = bool(os.environ.get("DEBUG")) and os.environ.get("DEBUG").lower()=='true'
 TESTING = bool(os.environ.get("TESTING")) and os.environ.get("TESTING").lower()=='true'
+DEFAULT_ALG = 'flooding'
 
 # Logging
 log_lvl = logging.DEBUG if DEBUG else logging.ERROR
