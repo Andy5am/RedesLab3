@@ -9,6 +9,8 @@ import slixmpp
 from slixmpp.exceptions import IqError, IqTimeout, XMPPError
 from aioconsole import ainput
 
+from vectorDistance import read_file
+
 
 def clean_jid(jid, domain="@alumchat.xyz"):
     if jid[-13:] != domain:
@@ -19,7 +21,7 @@ def clean_jid(jid, domain="@alumchat.xyz"):
 
 class Client(slixmpp.ClientXMPP):
 
-    def __init__(self, jid, password, algorithm, topo, names):
+    def __init__(self, jid, password, algorithm:str, topo:dict, names:dict):
         super().__init__(jid, password)
 
         self.nick = None
@@ -28,7 +30,11 @@ class Client(slixmpp.ClientXMPP):
         self.topo = topo
         self.names = names
 
-        self.node = self.recv_names(self.names.config)
+        self.node = self.recv_names(self.names)
+
+        if self.algorithm.lower()=='flooding':
+            self.counter = 0
+            self.nodes = {}
 
         # PLUGINS
         self.register_plugin('xep_0030') # Service Discovery
@@ -55,25 +61,30 @@ class Client(slixmpp.ClientXMPP):
     def recv_message(self, msg):
         """ Handles incoming messages. """
 
-        # TODO: routing algorithms
-
         if msg['type'] in ('chat', 'normal'):
-            # print(f"{msg['from'].username}: {msg['body']}")
 
             if self.algorithm.lower()=='flooding':
                 payload = json.loads(msg['body']) # get payload
 
+                # Validate source node list
+                if payload['source'] in self.nodes.keys():
+                    # Check if msg has been flooded
+                    if payload['counter'] <= len(self.nodes[payload['source']]):
+                        print("Message in node list. Discarding message.")
+                        return
+
+                else:
+                    self.nodes[payload['source']] = []
+                    self.nodes['source'].append(payload['counter'])
+
                 if payload['destination']==self.jid:
                     print(f"{payload['source']} says: {payload['message']}")
-                elif payload['hop_counter'] <= 0:
-                    print("Hop counter is 0. Discarding message.")
                 else:
-                    payload['hop_counter'] -= 1 # decrement hop counter
+                    for node in self.topo[self.node]: # node neighbors
+                        neighbor = self.names[node]
+                        if msg['from'] != neighbor:
+                            self.message(neighbor, json.dumps(payload))
 
-                    for node in self.topo.config[self.node]: # node neighbors
-                        recipient = self.names.config[node]
-                        if msg['from'] != recipient:
-                            self.message(recipient, json.dumps(payload))
             
         elif msg['type'] in ('error'):
             print('An error has ocurred.')
@@ -123,10 +134,11 @@ class Client(slixmpp.ClientXMPP):
 
                 while IN_CHAT:
                     msg = str(await ainput(">> "))
+                    self.counter += 1
 
                     if self.algorithm.lower()=='flooding':
                         payload = {
-                            "hop_counter": 20,
+                            "counter": self.counter,
                             "source": self.node,
                             "destination": recipient,
                             "message": msg
@@ -134,9 +146,9 @@ class Client(slixmpp.ClientXMPP):
 
                     if msg != 'exit':
                         if self.algorithm.lower()=='flooding':
-                            for node in self.topo.config[self.node]: # node neighbors
-                                recipient = self.names.config[node]
-                                self.message(recipient, json.dumps(payload))
+                            for node in self.topo[self.node]: # node neighbors
+                                neighbor = self.names[node]
+                                self.message(neighbor, json.dumps(payload))
                     else:
                         IN_CHAT = False
  
@@ -157,12 +169,16 @@ if __name__=='__main__':
 
     args = parser.parse_args()
 
+    # TODO: parametrize topo and names files?
+    names = read_file('names-demo.txt')
+    topo = read_file('topo-demo.txt')
+
     if args.alg:
         print(f"Router ON with {args.alg} routing algorithm.")
         print(f"Running node: {settings.JID}")
-        xmpp = Client(settings.JID, settings.PASSWORD, args.alg)
+        xmpp = Client(settings.JID, settings.PASSWORD, args.alg, topo=topo, names=names)
     else:
-        xmpp = Client(settings.JID, settings.PASSWORD, settings.DEFAULT_ALG)
+        xmpp = Client(settings.JID, settings.PASSWORD, settings.DEFAULT_ALG, topo=topo, names=names)
 
     xmpp.connect()
     xmpp.process(forever=False)
