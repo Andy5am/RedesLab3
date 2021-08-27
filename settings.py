@@ -14,7 +14,7 @@ TESTING = bool(os.environ.get("TESTING")) and os.environ.get("TESTING").lower()=
 DEFAULT_ALG = 'flooding'
 
 # Logging
-log_lvl = logging.DEBUG if DEBUG else logging.ERROR
+log_lvl = logging.DEBUG #if DEBUG else logging.ERROR
 logging.basicConfig(
     level=log_lvl,
     format='%(levelname)-8s %(message)s'
@@ -28,3 +28,9 @@ MAIN_MENU = """
         1. Send message
         2. Exit
 """
+
+ALGORITHMS = {
+    "flooding": "FLOODING",
+    "dv": "DISTANCE VECTOR",
+    "ls": "LINK STATE"
+}
