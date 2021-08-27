@@ -30,7 +30,7 @@ class Client(slixmpp.ClientXMPP):
         self.topo = topo
         self.names = names
 
-        self.node = self.recv_names(self.names)
+        self.node = self.recv_names(self.jid, self.names)
 
         self.router = Router(self.node, 'names-demo.txt', 'topo-demo.txt')
 
@@ -51,11 +51,31 @@ class Client(slixmpp.ClientXMPP):
 
     async def bellman_ford(self, event):
         while True:
+            await asyncio.sleep(0.1)
+            
             work = self.router.to_process.copy()
 
-            await asyncio.sleep(5)
+            print("PRE", self.router.vector)
+            for pair in work:
+                for key, value in pair[1].items():
+                    try:
+                        if self.router.vector[key][0] > value[0] + 1:
+                            self.router.vector[key] = (value[0] + 1, pair[0])
+                            print(self.router.vector[key])
+                    except KeyError:
+                        print("\nNEW NODE!\n")
+                        self.router.vector[key] = (value[0] + 1, pair[0])
+                        print(self.router.vector[key])
+            
+            print("POST", self.router.vector)
 
-            print(work, self.router.to_process)
+            payload = {
+                "type": "update",
+                "sender": self.router.node,
+                "vector": self.router.vector
+            }
+            for node in self.router.neighbors:
+                self.message(self.router.names[node], json.dumps(payload))
 
 
     async def session_start(self, event):
@@ -97,8 +117,20 @@ class Client(slixmpp.ClientXMPP):
                             self.message(neighbor, json.dumps(payload))
 
             if self.algorithm.lower() == 'dv':
-                print(payload)
-                self.router.to_process.append(payload['sender'])
+                if payload['type'] == "update":
+                    self.router.to_process.append((payload['sender'], payload['vector']))
+                elif payload['type'] == "comm":
+                    try:
+                        if self.router.node != payload['recipient_node']:
+                            dest = self.router.vector[payload['recipient_node']][1]
+                            self.message(self.router.names[dest], json.dumps(payload))
+                        else:
+                            print(f"""MENSAJE RECIBIDO DEL NODO: {payload['sender_node']}, PARA: {payload['recipient_node']}
+                            --> {payload['message']}
+                            """)
+                    except KeyError:
+                        print("\nNODE NO LONGER EXISTS!\n")
+
 
             
         elif msg['type'] in ('error'):
@@ -120,10 +152,10 @@ class Client(slixmpp.ClientXMPP):
     def recv_topo(self, topo:dict):
         self.topo = topo
 
-    def recv_names(self, names:dict):
+    def recv_names(self, addr:str, names:dict):
         """ Identify node name based on names dict. """
         for key, value in names.items():
-            if value == self.jid:
+            if value == addr:
                 return key
 
     
@@ -147,11 +179,11 @@ class Client(slixmpp.ClientXMPP):
 
                 while IN_CHAT:
                     msg = str(await ainput(">> "))
-                    self.counter += 1
                     
                     payload = {}
 
                     if self.algorithm.lower()=='flooding':
+                        self.counter += 1
                         payload = {
                             "counter": self.counter,
                             "source": self.node,
@@ -160,9 +192,13 @@ class Client(slixmpp.ClientXMPP):
                         }
                     
                     elif self.algorithm.lower() == 'dv':
+                        recipient_node = self.recv_names(recipient, self.names)
                         payload = {
-                            "type": "check",
-                            "sender": self.router.node,
+                            "type": "comm",
+                            "sender": self.jid,
+                            "sender_node": self.router.node,
+                            "recipient": recipient,
+                            "recipient_node": recipient_node,
                             "message": msg
                         }
 
@@ -173,8 +209,7 @@ class Client(slixmpp.ClientXMPP):
                                 self.message(neighbor, json.dumps(payload))
                         
                         if self.algorithm.lower()=='dv':
-                            for node in self.router.neighbors:
-                                self.message(self.router.names[node], json.dumps(payload))
+                            self.message(self.names[self.router.vector[recipient_node][1]], json.dumps(payload))
                     
                     else:
                         IN_CHAT = False
@@ -200,10 +235,14 @@ if __name__=='__main__':
     topo = json_to_dict('topo-demo.txt')
     names = json_to_dict('names-demo.txt')
 
+    jid = input("JID\n>> ")
+
     if args.alg:
         print(f"Router ON with {settings.ALGORITHMS[args.alg]} routing algorithm.")
-        print(f"Running node: {settings.JID}")
-        xmpp = Client(settings.JID, settings.PASSWORD, args.alg, topo=topo, names=names)
+        # print(f"Running node: {settings.JID}")
+        # xmpp = Client(settings.JID, settings.PASSWORD, args.alg, topo=topo, names=names)
+        print(f"Running node: {jid}")
+        xmpp = Client(jid, '12345', args.alg, topo=topo['config'], names=names['config'])
     else:
         xmpp = Client(settings.JID, settings.PASSWORD, settings.DEFAULT_ALG, topo=topo, names=names)
 
