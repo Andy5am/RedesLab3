@@ -134,9 +134,9 @@ class Client(slixmpp.ClientXMPP):
 
                 while IN_CHAT:
                     msg = str(await ainput(">> "))
-                    self.counter += 1
 
                     if self.algorithm.lower()=='flooding':
+                        self.counter += 1
                         payload = {
                             "counter": self.counter,
                             "source": self.node,
