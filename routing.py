@@ -1,15 +1,15 @@
-
-import asyncio
-import settings
 import sys
-import argparse
 import json
+import asyncio
+import argparse
+
+from aioconsole import ainput
 
 import slixmpp
 from slixmpp.exceptions import IqError, IqTimeout, XMPPError
-from aioconsole import ainput
 
-from vectorDistance import read_file
+import settings
+from vectorDistance import json_to_dict, Router
 
 
 def clean_jid(jid, domain="@alumchat.xyz"):
@@ -22,7 +22,7 @@ def clean_jid(jid, domain="@alumchat.xyz"):
 class Client(slixmpp.ClientXMPP):
 
     def __init__(self, jid, password, algorithm:str, topo:dict, names:dict):
-        super().__init__(jid, password)
+        slixmpp.ClientXMPP.__init__(self, jid, password)
 
         self.nick = None
 
@@ -31,6 +31,8 @@ class Client(slixmpp.ClientXMPP):
         self.names = names
 
         self.node = self.recv_names(self.names)
+
+        self.router = Router(self.node, 'names-demo.txt', 'topo-demo.txt')
 
         if self.algorithm.lower()=='flooding':
             self.counter = 0
@@ -43,11 +45,22 @@ class Client(slixmpp.ClientXMPP):
         # EVENT HANDLERS
         self.add_event_handler("session_start", self.session_start)
         self.add_event_handler("session_start", self.app)
+        self.add_event_handler("session_start", self.bellman_ford)
         self.add_event_handler("message", self.recv_message)
+
+
+    async def bellman_ford(self, event):
+        while True:
+            work = self.router.to_process.copy()
+
+            await asyncio.sleep(5)
+
+            print(work, self.router.to_process)
 
 
     async def session_start(self, event):
         """ Session start. Must send presence to server and get JID's roster. """
+        self.send_presence()
 
         try:
             await self.get_roster()
@@ -55,17 +68,15 @@ class Client(slixmpp.ClientXMPP):
             print('Error: %s' % err.iq['error']['condition'])
         except IqTimeout:
             print('Error: Request timed out')
-        self.send_presence()
 
 
     def recv_message(self, msg):
         """ Handles incoming messages. """
 
         if msg['type'] in ('chat', 'normal'):
-
+            payload = json.loads(msg['body']) # get payload
+            
             if self.algorithm.lower()=='flooding':
-                payload = json.loads(msg['body']) # get payload
-
                 # Validate source node list
                 if payload['source'] in self.nodes.keys():
                     # Check if msg has been flooded
@@ -84,6 +95,10 @@ class Client(slixmpp.ClientXMPP):
                         neighbor = self.names[node]
                         if msg['from'] != neighbor:
                             self.message(neighbor, json.dumps(payload))
+
+            if self.algorithm.lower() == 'dv':
+                print(payload)
+                self.router.to_process.append(payload['sender'])
 
             
         elif msg['type'] in ('error'):
@@ -107,11 +122,9 @@ class Client(slixmpp.ClientXMPP):
 
     def recv_names(self, names:dict):
         """ Identify node name based on names dict. """
-        
-        names_keys = names.keys()
-        names_vals = names.values()
-
-        return names_keys[names_vals.index(self.jid)]
+        for key, value in names.items():
+            if value == self.jid:
+                return key
 
     
     async def app(self, event):
@@ -135,6 +148,8 @@ class Client(slixmpp.ClientXMPP):
                 while IN_CHAT:
                     msg = str(await ainput(">> "))
                     self.counter += 1
+                    
+                    payload = {}
 
                     if self.algorithm.lower()=='flooding':
                         payload = {
@@ -143,12 +158,24 @@ class Client(slixmpp.ClientXMPP):
                             "destination": recipient,
                             "message": msg
                         }
+                    
+                    elif self.algorithm.lower() == 'dv':
+                        payload = {
+                            "type": "check",
+                            "sender": self.router.node,
+                            "message": msg
+                        }
 
                     if msg != 'exit':
                         if self.algorithm.lower()=='flooding':
                             for node in self.topo[self.node]: # node neighbors
                                 neighbor = self.names[node]
                                 self.message(neighbor, json.dumps(payload))
+                        
+                        if self.algorithm.lower()=='dv':
+                            for node in self.router.neighbors:
+                                self.message(self.router.names[node], json.dumps(payload))
+                    
                     else:
                         IN_CHAT = False
  
@@ -170,11 +197,11 @@ if __name__=='__main__':
     args = parser.parse_args()
 
     # TODO: parametrize topo and names files?
-    names = read_file('names-demo.txt')
-    topo = read_file('topo-demo.txt')
+    topo = json_to_dict('topo-demo.txt')
+    names = json_to_dict('names-demo.txt')
 
     if args.alg:
-        print(f"Router ON with {args.alg} routing algorithm.")
+        print(f"Router ON with {settings.ALGORITHMS[args.alg]} routing algorithm.")
         print(f"Running node: {settings.JID}")
         xmpp = Client(settings.JID, settings.PASSWORD, args.alg, topo=topo, names=names)
     else:
