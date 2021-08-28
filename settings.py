@@ -29,6 +29,15 @@ MAIN_MENU = """
         2. Exit
 """
 
+ALG_MENU = """
+    -------------------------------
+            ROUTING ALGORITHMS
+    -------------------------------
+        1. Flooding
+        2. Distance Vector
+        3. Link State
+"""
+
 ALGORITHMS = {
     "flooding": "FLOODING",
     "dv": "DISTANCE VECTOR",

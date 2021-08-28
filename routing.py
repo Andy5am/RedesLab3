@@ -2,6 +2,7 @@ import sys
 import json
 import asyncio
 import argparse
+from getpass import getpass
 
 from aioconsole import ainput
 
@@ -118,12 +119,17 @@ class Client(slixmpp.ClientXMPP):
 
                 else:
                     self.nodes[payload['source']] = []
-                    self.nodes['source'].append(payload['counter'])
+
+                payload['hops'] += 1
+                payload['distance'] += 1
+                payload['nodes'].append(self.node)
+                
+                self.nodes['source'].append(payload['counter'])
 
                 if payload['destination']==self.jid:
                     print(f"{payload['source']} says: {payload['message']}")
                 else:
-                    for node in self.topo[self.node]: # node neighbors
+                    for node in self.topo[self.node]: # node's neighbors
                         neighbor = self.names[node]
                         if msg['from'] != neighbor:
                             self.message(neighbor, json.dumps(payload))
@@ -216,6 +222,9 @@ class Client(slixmpp.ClientXMPP):
                             "counter": self.counter,
                             "source": self.node,
                             "destination": recipient,
+                            "hops": 0,
+                            "distance": 0,
+                            "nodes": [],
                             "message": msg
                         }
                     
@@ -233,8 +242,9 @@ class Client(slixmpp.ClientXMPP):
                         }
 
                     if msg != 'exit':
+
                         if self.algorithm.lower()=='flooding':
-                            for node in self.topo[self.node]: # node neighbors
+                            for node in self.topo[self.node]: # node's neighbors
                                 neighbor = self.names[node]
                                 self.message(neighbor, json.dumps(payload))
                         
@@ -263,22 +273,48 @@ class Client(slixmpp.ClientXMPP):
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--alg", dest='alg', help="Routing algorithm to use.")
+    # JID and password options.
+    parser.add_argument("--alg", dest='alg', help="Routing algorithm to use. Can be 'flooding', 'dv' or 'ls'.")
+
+    parser.add_argument("-j", "--jid", dest="jid", help="JID to use")
+    parser.add_argument("-p", "--password", dest="password", help="password to use")
+    
+    parser.add_argument("-n", "--names", dest="names", help="Names filename.")
+    parser.add_argument("-t", "--topo", dest="topo", help="Topology filename.")
 
     args = parser.parse_args()
 
-    # TODO: parametrize topo and names files?
-    topo = json_to_dict('topo-demo.txt')
-    names = json_to_dict('names-demo.txt')
+    if args.jid is None:
+        args.jid = input("Username: ")
+    if args.password is None:
+        args.password = getpass("Password: ")
 
-    if args.alg:
-        print(f"Router ON with {settings.ALGORITHMS[args.alg]} routing algorithm.")
-        # print(f"Running node: {settings.JID}")
-        # xmpp = Client(settings.JID, settings.PASSWORD, args.alg, topo=topo, names=names)
-        print(f"Running node: {jid}")
-        xmpp = Client(jid, pwd, args.alg, topo=topo['config'], names=names['config'])
+    if args.topo:
+        topo = json_to_dict(args.topo)
     else:
-        xmpp = Client(settings.JID, settings.PASSWORD, settings.DEFAULT_ALG, topo=topo, names=names)
+        topo = json_to_dict('topo-default.txt')
+
+    if args.names:
+        names = json_to_dict(args.names)
+    else:
+        names = json_to_dict('names-default.txt')
+
+    if args.alg is None:
+        print(settings.ALG_MENU)
+        alg_int = input("\nSelect a routing algorithm: ")
+        if alg_int==1:
+            args.alg = 'flooding'
+        elif alg_int==2:
+            args.alg = 'dv'
+        elif alg_int==3:
+            args.alg = 'ls'
+        else:
+            args.alg = settings.DEFAULT_ALG
+
+    print(f"Router ON with {settings.ALGORITHMS[args.alg]} routing algorithm.")
+    print(f"Running node: {args.jids}")
+
+    xmpp = Client(args.jid, args.password, args.alg, topo=topo['config'], names=names['config'])
 
     xmpp.connect()
     xmpp.process(forever=False)
