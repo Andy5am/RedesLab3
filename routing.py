@@ -49,16 +49,28 @@ class Client(slixmpp.ClientXMPP):
         self.add_event_handler("message", self.recv_message)
 
 
+    """
+    Calculation of the optimal route for each node "discovered" and saved in vector.
+
+    Processes incoming 'update' packages from neighbor nodes to find a better route (if there is one)
+    for each saved node, or add one if there is not one previous existing route.
+
+    Arguments:
+        None
+
+    Returns:
+        None
+    """
     async def bellman_ford(self, event):
         while True:
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.5)
             
             work = self.router.to_process.copy()
 
-            print("PRE", self.router.vector)
             for pair in work:
                 for key, value in pair[1].items():
                     try:
+                        # incoming value (route) lower than the one stored
                         if self.router.vector[key][0] > value[0] + 1:
                             self.router.vector[key] = (value[0] + 1, pair[0])
                             print(self.router.vector[key])
@@ -66,14 +78,14 @@ class Client(slixmpp.ClientXMPP):
                         print("\nNEW NODE!\n")
                         self.router.vector[key] = (value[0] + 1, pair[0])
                         print(self.router.vector[key])
-            
-            print("POST", self.router.vector)
 
+            # build dict to send to neighbor nodes
             payload = {
                 "type": "update",
                 "sender": self.router.node,
                 "vector": self.router.vector
             }
+            # send to all neighbors
             for node in self.router.neighbors:
                 self.message(self.router.names[node], json.dumps(payload))
 
@@ -117,16 +129,32 @@ class Client(slixmpp.ClientXMPP):
                             self.message(neighbor, json.dumps(payload))
 
             if self.algorithm.lower() == 'dv':
+                # if the message is about vector state, append to list for bellman-ford to process
                 if payload['type'] == "update":
                     self.router.to_process.append((payload['sender'], payload['vector']))
+                # if the message is a normal communication, print if self is recipient, forward if not
                 elif payload['type'] == "comm":
                     try:
                         if self.router.node != payload['recipient_node']:
+                            payload['node_count'] += 1 # increment the node counter
+                            payload['node_list'].append(self.node) # append self node to node list
+
                             dest = self.router.vector[payload['recipient_node']][1]
-                            self.message(self.router.names[dest], json.dumps(payload))
+                            self.message(self.router.names[dest], json.dumps(payload)) # forward message
+
+                            print(f""" FORWARDED MESSAGE RECEIVED
+                            --> FROM: [{payload['sender_node']}] {payload['sender']}
+                            --> TO: [{payload['recipient_node']}] {payload['recipient']}
+                            --> FORWARDED TO: [{dest}] {self.router.names[dest]}
+                            """)
                         else:
-                            print(f"""MENSAJE RECIBIDO DEL NODO: {payload['sender_node']}, PARA: {payload['recipient_node']}
-                            --> {payload['message']}
+                            # print received message if intended recipient
+                            print(f""" MESSAGE RECEIVED
+                            --> FROM: [{payload['sender_node']}] {payload['sender']}
+                            --> TO: [{payload['recipient_node']}] {payload['recipient']}
+                            --> JUMPS: {payload['node_count']}
+                            --> NODES: {payload['node_list']}
+                            --> SAYS: {payload['message']}
                             """)
                     except KeyError:
                         print("\nNODE NO LONGER EXISTS!\n")
@@ -199,6 +227,8 @@ class Client(slixmpp.ClientXMPP):
                             "sender_node": self.router.node,
                             "recipient": recipient,
                             "recipient_node": recipient_node,
+                            "node_count": 1,
+                            "node_list": [self.node],
                             "message": msg
                         }
 
@@ -209,8 +239,14 @@ class Client(slixmpp.ClientXMPP):
                                 self.message(neighbor, json.dumps(payload))
                         
                         if self.algorithm.lower()=='dv':
-                            self.message(self.names[self.router.vector[recipient_node][1]], json.dumps(payload))
+                            intermediary = self.router.vector[recipient_node][1]
+
+                            self.message(self.names[intermediary], json.dumps(payload))
                     
+                            print(f"""SENT MESSAGE
+                            --> TO: [{recipient_node}] {recipient}
+                            --> THROUGH: [{intermediary}] {self.names[intermediary]}
+                            """)
                     else:
                         IN_CHAT = False
  
@@ -235,14 +271,12 @@ if __name__=='__main__':
     topo = json_to_dict('topo-demo.txt')
     names = json_to_dict('names-demo.txt')
 
-    jid = input("JID\n>> ")
-
     if args.alg:
         print(f"Router ON with {settings.ALGORITHMS[args.alg]} routing algorithm.")
         # print(f"Running node: {settings.JID}")
         # xmpp = Client(settings.JID, settings.PASSWORD, args.alg, topo=topo, names=names)
         print(f"Running node: {jid}")
-        xmpp = Client(jid, '12345', args.alg, topo=topo['config'], names=names['config'])
+        xmpp = Client(jid, pwd, args.alg, topo=topo['config'], names=names['config'])
     else:
         xmpp = Client(settings.JID, settings.PASSWORD, settings.DEFAULT_ALG, topo=topo, names=names)
 
