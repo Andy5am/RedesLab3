@@ -253,9 +253,14 @@ if __name__=='__main__':
     if args.password is None:
         args.password = getpass("Password: ")
 
-    if args.topo is None:
+    if args.topo:
+        topo = json_to_dict(args.topo)
+    else:
         topo = json_to_dict('topo-default.txt')
-    if args.names is None:
+
+    if args.names:
+        names = json_to_dict(args.names)
+    else:
         names = json_to_dict('names-default.txt')
 
     if args.alg is None:
