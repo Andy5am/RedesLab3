@@ -28,6 +28,7 @@ class Client(slixmpp.ClientXMPP):
         self.nick = None
 
         self.algorithm = algorithm
+        print(self.algorithm)
         self.topo = topo
         self.names = names
 
@@ -46,7 +47,7 @@ class Client(slixmpp.ClientXMPP):
         # EVENT HANDLERS
         self.add_event_handler("session_start", self.session_start)
         self.add_event_handler("session_start", self.app)
-        self.add_event_handler("session_start", self.bellman_ford)
+        # self.add_event_handler("session_start", self.bellman_ford)
         self.add_event_handler("message", self.recv_message)
 
 
@@ -124,7 +125,7 @@ class Client(slixmpp.ClientXMPP):
                 payload['distance'] += 1
                 payload['nodes'].append(self.node)
                 
-                self.nodes['source'].append(payload['counter'])
+                self.nodes[payload['source']].append(payload['counter'])
 
                 if payload['destination']==self.jid:
                     print(f"{payload['source']} says: {payload['message']}")
@@ -292,12 +293,12 @@ if __name__=='__main__':
     if args.topo:
         topo = json_to_dict(args.topo)
     else:
-        topo = json_to_dict('topo-default.txt')
+        topo = json_to_dict('topo-demo.txt')
 
     if args.names:
         names = json_to_dict(args.names)
     else:
-        names = json_to_dict('names-default.txt')
+        names = json_to_dict('names-demo.txt')
 
     if args.alg is None:
         print(settings.ALG_MENU)
@@ -312,7 +313,7 @@ if __name__=='__main__':
             args.alg = settings.DEFAULT_ALG
 
     print(f"Router ON with {settings.ALGORITHMS[args.alg]} routing algorithm.")
-    print(f"Running node: {args.jids}")
+    print(f"Running node: {args.jid}")
 
     xmpp = Client(args.jid, args.password, args.alg, topo=topo['config'], names=names['config'])
 
