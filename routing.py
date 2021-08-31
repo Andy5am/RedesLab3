@@ -33,8 +33,8 @@ class Client(slixmpp.ClientXMPP):
         self.names = names
 
         self.node = self.recv_names(self.jid, self.names)
-
-        self.router = Router(self.node, 'names-demo.txt', 'topo-demo.txt')
+        if self.algorithm.lower()=='dv':
+            self.router = Router(self.node, 'names-demo.txt', 'topo-demo.txt')
 
         if self.algorithm.lower()=='flooding':
             self.counter = 0
@@ -47,7 +47,8 @@ class Client(slixmpp.ClientXMPP):
         # EVENT HANDLERS
         self.add_event_handler("session_start", self.session_start)
         self.add_event_handler("session_start", self.app)
-        # self.add_event_handler("session_start", self.bellman_ford)
+        if self.algorithm.lower()=='dv':
+            self.add_event_handler("session_start", self.bellman_ford)
         self.add_event_handler("message", self.recv_message)
 
 
