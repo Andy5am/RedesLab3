@@ -140,6 +140,7 @@ class Client(slixmpp.ClientXMPP):
                 if payload['destination']==self.jid:
                     print(f"{payload['source']} says: {payload['message']}")
                 else:
+                    print("Flooding message")
                     for node in self.topo[self.node]: # node's neighbors
                         neighbor = self.names[node]
                         if msg['from'] != neighbor:
