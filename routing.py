@@ -319,13 +319,13 @@ if __name__=='__main__':
         topo = json_to_dict(args.topo)
         tfile = args.topo
     else:
-        topo = json_to_dict('topo-demo.txt')
+        topo = json_to_dict(input("Topo file: "))
 
     if args.names:
         names = json_to_dict(args.names)
         nfile = args.names
     else:
-        names = json_to_dict('names-demo.txt')
+        names = json_to_dict(input("Names file: "))
 
     if args.alg is None:
         print(settings.ALG_MENU)
