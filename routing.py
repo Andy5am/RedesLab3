@@ -110,6 +110,14 @@ class Client(slixmpp.ClientXMPP):
 
         if msg['type'] in ('chat', 'normal'):
             payload = json.loads(msg['body']) # get payload
+
+            if payload['type']=='names':
+                print("Names config received.")
+                self.names = payload['config']
+
+            if payload['type']=='topo':
+                print("Topology config received.")
+                self.topo = payload['config']
             
             if self.algorithm.lower()=='flooding':
                 # Validate source node list
