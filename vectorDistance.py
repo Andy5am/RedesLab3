@@ -4,7 +4,6 @@ Instance example --> router = Router("A", "names-default.txt", "topo-default.txt
 
 import json
 import string
-import numpy as np
 
 
 """
@@ -71,7 +70,7 @@ class Router(object):
     def get_neighbors(self):
         topo = json_to_dict(self.topo)
 
-        return topo[self.node]
+        return topo['config'][self.node]
 
 
     """
@@ -85,4 +84,4 @@ class Router(object):
     """
     def get_names(self):
         names = json_to_dict(self.names)
-        return names
+        return names['config']

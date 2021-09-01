@@ -22,7 +22,7 @@ def clean_jid(jid, domain="@alumchat.xyz"):
 
 class Client(slixmpp.ClientXMPP):
 
-    def __init__(self, jid, password, algorithm:str, topo:dict, names:dict):
+    def __init__(self, jid, password, algorithm:str, topo:dict, names:dict, nfile, tfile):
         slixmpp.ClientXMPP.__init__(self, jid, password)
 
         self.nick = None
@@ -34,7 +34,7 @@ class Client(slixmpp.ClientXMPP):
 
         self.node = self.recv_names(self.jid, self.names)
         if self.algorithm.lower()=='dv':
-            self.router = Router(self.node, self.names, self.topo)
+            self.router = Router(self.node, nfile, tfile)
 
         if self.algorithm.lower()=='flooding':
             self.counter = 0
@@ -291,13 +291,18 @@ if __name__=='__main__':
     if args.password is None:
         args.password = getpass("Password: ")
 
+    nfile = 'names-demo.txt'
+    tfile = 'topo-demo.txt'
+
     if args.topo:
         topo = json_to_dict(args.topo)
+        tfile = args.topo
     else:
         topo = json_to_dict('topo-demo.txt')
 
     if args.names:
         names = json_to_dict(args.names)
+        nfile = args.names
     else:
         names = json_to_dict('names-demo.txt')
 
@@ -316,7 +321,7 @@ if __name__=='__main__':
     print(f"Router ON with {settings.ALGORITHMS[args.alg]} routing algorithm.")
     print(f"Running node: {args.jid}")
 
-    xmpp = Client(args.jid, args.password, args.alg, topo=topo['config'], names=names['config'])
+    xmpp = Client(args.jid, args.password, args.alg, topo=topo['config'], names=names['config'], nfile=nfile, tfile=tfile)
 
     xmpp.connect()
     xmpp.process(forever=False)
