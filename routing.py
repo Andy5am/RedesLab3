@@ -34,7 +34,7 @@ class Client(slixmpp.ClientXMPP):
 
         self.node = self.recv_names(self.jid, self.names)
         if self.algorithm.lower()=='dv':
-            self.router = Router(self.node, 'names-demo.txt', 'topo-demo.txt')
+            self.router = Router(self.node, self.names, self.topo)
 
         if self.algorithm.lower()=='flooding':
             self.counter = 0

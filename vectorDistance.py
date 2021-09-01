@@ -34,15 +34,15 @@ class Router(object):
 
     Arguments:
         node --> Name (letter) of the node assigned
-        nfile --> File with the names in json format
-        tfile --> File with the topology in json format
+        names --> File with the names in json format
+        topo --> File with the topology in json format
 
     Returns:
         None
     """
-    def __init__(self, node, nfile, tfile):
-        self.nfile = nfile
-        self.tfile = tfile
+    def __init__(self, node, names, topo):
+        self.names = names
+        self.topo = topo
 
         self.node = node
 
@@ -69,9 +69,9 @@ class Router(object):
         List with the name of the neighbor nodes
     """
     def get_neighbors(self):
-        topo = json_to_dict(self.tfile)
+        topo = json_to_dict(self.topo)
 
-        return topo['config'][self.node]
+        return topo[self.node]
 
 
     """
@@ -84,5 +84,5 @@ class Router(object):
         List with the address of each node
     """
     def get_names(self):
-        names = json_to_dict(self.nfile)
-        return names['config']
+        names = json_to_dict(self.names)
+        return names
