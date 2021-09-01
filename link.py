@@ -140,21 +140,13 @@ class Client(slixmpp.ClientXMPP):
         }
         msg = self.create_message(neighbor, echo_msg)
         self.send_direct_message(neighbor, msg)
-        
-    def guess_sender_node(self, sender):
-        for node_name, node_jid in self.router.users.items():
-            if node_jid == sender:
-                return node_name
-        
-        return None
-
+    
     def receive_message(self, message):
         message_type = str(message['type'])
         if message_type == 'chat':
             body_json = str(message['body'])
             body = json.loads(body_json)
             
-            # Body dict has same keys of create_message dict
             sender = body["from_node"]
             recipient = body["to_node"]
             nodes_traveled = body["nodes"]
