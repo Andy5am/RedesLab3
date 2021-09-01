@@ -138,7 +138,15 @@ class Client(slixmpp.ClientXMPP):
                 self.nodes[payload['source']].append(payload['counter'])
 
                 if payload['destination']==self.jid:
-                    print(f"{payload['source']} says: {payload['message']}")
+                    if payload['message'].lower()=='echo':
+                        payload['destination'] = self.names[payload['source']]
+                        payload['source'] = self.node
+                        for node in self.topo[self.node]: # node's neighbors
+                            neighbor = self.names[node]
+                            self.message(neighbor, json.dumps(payload))
+                    
+                    else:
+                        print(f"{payload['source']} says: {payload['message']}")
                 else:
                     print("Flooding message")
                     for node in self.topo[self.node]: # node's neighbors
