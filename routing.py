@@ -115,6 +115,7 @@ class Client(slixmpp.ClientXMPP):
             if payload['type']=='names':
                 print("Names config received.")
                 self.names = payload['config']
+                self.node = self.recv_names(self.jid, self.names)
 
             if payload['type']=='topo':
                 print("Topology config received.")
