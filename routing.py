@@ -272,7 +272,7 @@ class Client(slixmpp.ClientXMPP):
                         IN_CHAT = False
  
 
-            elif option==10: # Exit
+            elif option==2: # Exit
                 print("Exit")
                 print("Goodbye!")
                 IN_APP_LOOP = False
